@@ -1,0 +1,31 @@
+{
+  "name": "basecrm",
+  "version": "0.0.1",
+  "description": "basecrm client for nodejs",
+  "main": "src/base.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/dscape/basecrm.git"
+  },
+  "keywords": [
+    "basecrm",
+    "crm",
+    "rest"
+  ],
+  "author": "nuno job @dscape",
+  "license": "mit",
+  "bugs": {
+    "url": "https://github.com/dscape/basecrm/issues"
+  },
+  "homepage": "https://github.com/dscape/basecrm",
+  "dependencies": {
+    "request": "^2.34.0"
+  },
+  "devDependencies": {
+    "specify": "^1.2.1",
+    "argh": "^0.1.1"
+  }
+}

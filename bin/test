@@ -1,0 +1,7 @@
+#!/bin/bash
+read -p "Email: " email
+read -s -p "Password: " mypassword
+
+echo
+
+BASECRM_PASSWORD=$mypassword BASECRM_EMAIL=$email test/index

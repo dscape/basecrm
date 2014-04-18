@@ -1,0 +1,23 @@
+#!/usr/bin/env node
+
+var specify = require('specify')
+  , base = require('../src/base')()
+  , email = process.env.BASECRM_EMAIL
+  , password = process.env.BASECRM_PASSWORD
+  , cli
+  ;
+
+specify('auth:setup', 2500, function (assert) {
+  assert.ok(email, 'should have a email env var');
+  assert.ok(password, 'should have a password env var');
+  base.createClient(
+    { email: email
+    , password: password
+    }, function (err, client) {
+      cli = client;
+      assert.equal(err, null, 'should be able to authenticate');
+      assert.ok(client, 'should return a client');
+    });
+})
+
+specify.run(process.argv.slice(2));
