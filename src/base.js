@@ -10,25 +10,136 @@
 'use strict';
 
 var request = require('request')
+  , qs = require('querystring')
+  , log = require('debug')('base:base')
   , defaultEndpoint = 'https://sales.futuresimple.com/api/v1'
   , basecrm
   ;
 
-function BaseClient(opts) {
-  this.opts = {};
-  this.opts.endpoint = opts.endpoint || defaultEndpoint;
-  this.opts.token = opts.token;
+function BaseCRM(opts) {
+  this.endpoint = opts.endpoint || defaultEndpoint;
+  this.token = opts.token;
 }
 
-BaseClient.prototype.createNewDeal = function(opts, cb) {
+BaseCRM.prototype.relax = function (opts, cb) {
+  var reqOpts = {
+      uri: this.endpoint + opts.path
+    , method: opts.method
+    , headers:
+      { 'Content-Type': 'application/json'
+      , 'X-Pipejump-Auth': this.token
+      }
+    , json: true
+    };
+
+  if(typeof opts.data === 'object') {
+    reqOpts.uri += '?' + qs.stringify(opts.data);
+  }
+
+  log(JSON.stringify(reqOpts));
+
+  request(reqOpts, function (err, headers, data) {
+    if(err) {
+      log(err);
+      return cb(err);
+    }
+
+    if (data.errors) {
+      log(data);
+      cb(JSON.stringify(data.errors));
+    }
+    else {
+      log(JSON.stringify(data), headers.statusCode);
+      if (headers.statusCode >= 200 && headers.statusCode < 400) {
+        cb(null, data);
+      } else {
+        cb(new Error('Request failed with code ' + headers.statusCode));
+      }
+    }
+  });
+};
+
+BaseCRM.prototype.createNoteForContact = function (opts, cb) {
+  this.relax({
+      path: '/contacts/' + opts.contactId + '/notes'
+    , method: 'POST'
+    , data: { 'note[content]': opts.note }
+  }, cb);
+};
+
+BaseCRM.prototype.deleteNoteForContact = function (opts, cb) {
+  this.relax({
+      path: '/contacts/' + opts.contactId + '/notes/' + opts.noteId
+    , method: 'DELETE'
+  }, cb);
+};
+
+BaseCRM.prototype.getNoteForContact = function (opts, cb) {
+  this.relax({
+      path: '/contacts/' + opts.contactId + '/notes/' + opts.noteId
+  }, cb);
+};
+
+BaseCRM.prototype.createContact = function (data, cb) {
+  this.relax({
+    path: '/contacts.json',
+    method: 'POST',
+    data: data
+  }, cb);
+};
+
+BaseCRM.prototype.deleteContact = function (opts, cb) {
+  this.relax({
+    path: '/contacts/' + opts.contactId,
+    method: 'DELETE'
+  }, cb);
+};
+
+BaseCRM.prototype.getContact = function (opts, cb) {
+  this.relax({
+    path: '/contacts/' + opts.contactId
+  }, cb);
+};
+
+BaseCRM.prototype.createDeal = function (data, cb) {
+  this.relax({
+    path: '/deals',
+    method: 'POST',
+    data:
+      { name: data.name
+      , entity_id: data.contactId
+      }
+  }, cb);
+};
+
+BaseCRM.prototype.createOrganization = function (opts, cb) {
+  this.createContact(
+    { 'contact[is_organisation]': true
+    , 'contact[name]': opts.contactName
+    }, cb);
+};
+
+BaseCRM.prototype.createPerson = function (opts, cb) {
+  this.createContact(
+    { 'contact[last_name]': opts.contactLastName
+    , 'contact[first_name]': opts.contactFirstName
+    , 'contact[email]': opts.contactEmail
+    }, cb);
+};
+
+BaseCRM.prototype.createDealFromScratch = function(opts, cb) {
   var organizationName = opts.company
     , personNames = opts.from_name.split(' ')
     , personEmail = opts.from_email
     , emailSubject = opts.subject
     , emailBody = opts.text
     , lastName = 'not given'
+    , self = this
+    , response = {}
     , firstName
-    , basecli = this
+    , orgId
+    , personId
+    , dealId
     ;
 
   if(personNames.length > 1) {
@@ -38,77 +149,52 @@ BaseClient.prototype.createNewDeal = function(opts, cb) {
     firstName = personNames[0];
   }
 
-  request(
-    { uri: basecli.endpoint + '/contacts'
-    , method: 'POST'
-    , headers:
-      {
-        'X-Pipejump-Auth': basecli.token
-      }
-    , json:
-      { 'contact[is_organisation]': true
-      , 'contact[name]': organizationName
-      }
-    }, function (err, _, org) {
-      if(err) {
-        return cb(err);
-      }
+  self.createOrganization({
+    contactName: organizationName
+  }, function (err, data) {
+    if (err)
+      return cb(err, response);
 
-      if (org.errors)
-        cb(org.errors);
-      else
-        request(
-          { uri: basecli.endpoint + '/contacts'
-          , method: 'POST'
-          , headers:
-            {
-              'X-Pipejump-Auth': basecli.token
-            }
-          , json:
-            { 'contact[last_name]': lastName
-            , 'contact[first_name]': firstName
-            , 'contact[email]': personEmail
-            }
-          }, function (err, _, person) {
-            var orgId = org.contact.id;
-            if(!orgId)
-              return cb(new Error('Failed creating organization'));
-            if(err) {
-              return cb(err);
-            }
+    response.organization = (data.contact || data.organization);
+    orgId = response.organization.id;
 
-            if (person.errors)
-              cb(person.errors);
-            else {
-              var personId = person.contact.id;
-              if(!personId)
-                return cb(new Error('Failed creating person'));
+    self.createPerson(
+      { contactLastName: lastName
+      , contactFirstName: firstName
+      , contactEmail: personEmail
+      }, function (err, data) {
+      if (err)
+        return cb(err, response);
 
-              request(
-                { uri: basecli.endpoint + '/deals'
-                , method: 'POST'
-                , headers:
-                  {
-                    'X-Pipejump-Auth': basecli.token
-                  }
-                , json:
-                  { 'name': organizationName + ' — ' + emailSubject
-                  , 'entity_id': orgId
-                  }
-                }, function (err, _, deal) {
-                  if(err) {
-                    return cb(err);
-                  }
+      response.person = data.contact;
+      personId = response.person.id;
 
-                  if (deal.errors)
-                    cb(deal.errors);
-                  else {
+      self.createDeal({
+          name: organizationName + ' — ' + emailSubject
+        , contactId: personId
+      }, function (err, data) {
+        if (err)
+          return cb(err, response);
 
-                  }
-              });
-            }
+      response.deal = data.deal;
+      dealId = data.deal.id;
+
+      self.createNoteForContact(
+        { contactId: personId
+        , note: emailBody
+        }, function (err, data) {
+          if(err)
+            return cb(err, response);
+
+          response.note = data.note;
+
+          cb(null, response)
+
         });
+      });
     });
+  });
+
 };
 
 function createClient(opts, cb) {
@@ -116,7 +202,7 @@ function createClient(opts, cb) {
     if(err)
       return cb(err);
     opts.token = token;
-    var client = new BaseClient(opts);
+    var client = new BaseCRM(opts);
     return cb(null, client);
   });
 }
@@ -135,6 +221,30 @@ function authenticate (opts, cb) {
         cb(new Error('Authentication failed'));
     });
 }
+
+
+BaseCRM.prototype.contact = (function () {
+  return {
+    create: BaseCRM.prototype.createContact.bind(this)
+  , del: BaseCRM.prototype.deleteContact.bind(this)
+  , get: BaseCRM.prototype.getContact.bind(this)
+  , note:
+    {
+      create: BaseCRM.prototype.createNoteForContact.bind(this)
+    }
+  };
+})();
+
+BaseCRM.prototype.person = BaseCRM.prototype.contact;
+BaseCRM.prototype.organization = BaseCRM.prototype.contact;
+
+BaseCRM.prototype.person.create = (function () {
+  return BaseCRM.prototype.createPerson.bind(this);
+})();
+
+BaseCRM.prototype.person.create = (function () {
+  return BaseCRM.prototype.createPerson.bind(this);
+})();
 
 module.exports = exports = basecrm = function basecrm() {
   return {

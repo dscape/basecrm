@@ -2,12 +2,13 @@
 
 var specify = require('specify')
   , base = require('../src/base')()
-  , email = process.env.BASECRM_EMAIL
-  , password = process.env.BASECRM_PASSWORD
+  , email = process.env.BASECRM_EMAIL || 'misc7546+testingbasecrm@gmail.com'
+  , password = process.env.BASECRM_PASSWORD || 'qpwoeiruty'
+  , timeout = process.env.BASECRM_TIMEOUT || 5000
   , cli
   ;
 
-specify('auth:setup', 2500, function (assert) {
+specify('integration:setup', timeout, function (assert) {
   assert.ok(email, 'should have a email env var');
   assert.ok(password, 'should have a password env var');
   base.createClient(
@@ -18,6 +19,21 @@ specify('auth:setup', 2500, function (assert) {
       assert.equal(err, null, 'should be able to authenticate');
       assert.ok(client, 'should return a client');
     });
+})
+
+specify('integration:createDealFromScratch', timeout, function (assert) {
+  cli.createDealFromScratch(
+    { company: 'Foo Bar Corp'
+    , from_name: 'John'
+    , from_email: 'jon@foobarcorp.co'
+    , subject: 'Hello'
+    , text: 'Trying this out'
+    }
+  , function (err, data) {
+    if(err)
+      throw err;
+    assert.equal(err, null, 'should be able to create deal');
+  })
 })
 
 specify.run(process.argv.slice(2));
