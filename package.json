@@ -24,7 +24,7 @@
   "homepage": "https://github.com/dscape/basecrm",
   "dependencies": {
     "request": "^2.34.0",
-    "debug": "^0.8.1"
+    "debug": "*"
   },
   "devDependencies": {
     "specify": "^1.2.1",
