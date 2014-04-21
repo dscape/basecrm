@@ -1,6 +1,6 @@
 {
   "name": "basecrm",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "basecrm client for nodejs",
   "main": "src/base.js",
   "scripts": {
